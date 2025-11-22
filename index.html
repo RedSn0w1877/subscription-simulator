@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Studio System Simulator</title>
+  <style>
+    :root {
+      --bg: #03060f;
+      --panel: rgba(16, 18, 30, 0.86);
+      --accent: #7c5dff;
+      --accent-2: #1dd0ff;
+      --text: #e9f1ff;
+      --muted: #a7b7d6;
+      --success: #5cf2c7;
+      --danger: #ff6b6b;
+      --shadow: 0 18px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 20%, rgba(124, 93, 255, 0.1), transparent 25%),
+        radial-gradient(circle at 80% 30%, rgba(29, 208, 255, 0.12), transparent 30%),
+        radial-gradient(circle at 50% 80%, rgba(92, 242, 199, 0.08), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    canvas#starfield {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    .grid {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 80px 80px;
+      transform: perspective(700px) rotateX(70deg);
+      transform-origin: top;
+      filter: blur(0.6px);
+      opacity: 0.5;
+      z-index: 1;
+    }
+
+    header {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo span {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-toggle {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button, .chip {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: linear-gradient(120deg, rgba(124, 93, 255, 0.18), rgba(29, 208, 255, 0.18));
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    }
+
+    button:hover, .chip:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 8px 30px rgba(124, 93, 255, 0.2), 0 8px 30px rgba(29, 208, 255, 0.2);
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .content {
+      position: relative;
+      z-index: 2;
+      padding: 16px 32px 120px;
+      overflow-y: auto;
+      height: calc(100vh - 70px);
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel h3 { margin: 0 0 8px; }
+
+    .tiers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(124, 93, 255, 0.12), rgba(29, 208, 255, 0.12));
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+
+    .card:hover:before { opacity: 1; }
+    .card * { position: relative; }
+
+    .badge { font-size: 0.8rem; color: var(--muted); }
+    .features { color: var(--muted); font-size: 0.95rem; line-height: 1.4; }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .tile {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 0.95rem;
+    }
+
+    .intel textarea, .generator textarea {
+      width: 100%;
+      min-height: 90px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--text);
+      padding: 12px;
+      resize: vertical;
+    }
+
+    .intel .output, .generator .output {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      min-height: 60px;
+    }
+
+    .money-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+    }
+
+    .signin-overlay, .checkout-overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 30% 30%, rgba(124, 93, 255, 0.15), transparent 40%),
+        radial-gradient(circle at 70% 50%, rgba(29, 208, 255, 0.18), transparent 40%),
+        rgba(5, 6, 10, 0.94);
+      backdrop-filter: blur(16px);
+      z-index: 10;
+      animation: fadeIn 500ms ease;
+    }
+
+    .signin-box, .checkout-box {
+      width: min(560px, 90vw);
+      padding: 24px;
+      background: rgba(17, 22, 34, 0.85);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: var(--shadow);
+    }
+
+    .signin-box h1 { margin: 0 0 6px; }
+    .signin-box p { color: var(--muted); margin-top: 0; }
+
+    .input {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .input input, .input select {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--text);
+    }
+
+    .error { color: var(--danger); font-size: 0.9rem; }
+    .muted { color: var(--muted); }
+    .hidden { display: none; }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .canvas-wrap {
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #draw-canvas {
+      width: 100%;
+      height: 280px;
+      background: radial-gradient(circle at 20% 20%, rgba(124, 93, 255, 0.1), transparent 25%), #0a0f1d;
+      display: block;
+      cursor: crosshair;
+    }
+
+    .progress {
+      width: 100%;
+      height: 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .progress-inner {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      transition: width 120ms linear;
+    }
+
+    .generated-visuals {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .shape {
+      height: 60px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.08);
+      display: grid;
+      place-items: center;
+      color: var(--text);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 1000px) {
+      body { overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+  <div class="grid"></div>
+
+  <div id="signin" class="signin-overlay">
+    <div class="signin-box">
+      <h1>Welcome to Nexus Studio</h1>
+      <p>Sign in to start creating across code, art, music, and games.</p>
+      <div class="input">
+        <label>Creator Handle</label>
+        <input id="username" placeholder="e.g., NovaMaker" />
+      </div>
+      <div class="input">
+        <label>Password (hint: test)</label>
+        <input id="password" type="password" placeholder="Password" />
+      </div>
+      <div id="signin-error" class="error hidden">Incorrect password. Use "test" to explore.</div>
+      <button id="signin-btn">Enter Studio</button>
+    </div>
+  </div>
+
+  <div id="checkout" class="checkout-overlay hidden">
+    <div class="checkout-box">
+      <h2>Fake Checkout</h2>
+      <p class="muted">Type anything to simulate a payment. Money is used to pay for subscriptions and NexBucks.</p>
+      <div class="input">
+        <label>Name on card</label>
+        <input id="card-name" placeholder="Ada Lovelace" />
+      </div>
+      <div class="input">
+        <label>Card number</label>
+        <input id="card-number" placeholder="4242 4242 4242 4242" />
+      </div>
+      <div class="input" style="display:grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap:10px;">
+        <div class="input">
+          <label>Expiration date</label>
+          <input id="card-exp" placeholder="12/29" />
+        </div>
+        <div class="input">
+          <label>CVV</label>
+          <input id="card-cvv" placeholder="123" />
+        </div>
+      </div>
+      <div class="input">
+        <label>Charge preview</label>
+        <input id="checkout-price" disabled />
+      </div>
+      <div class="error hidden" id="checkout-error"></div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="checkout-confirm">Submit</button>
+        <button id="checkout-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo">☄️ <span>Nexus Studio</span> System Simulator</div>
+    <div class="theme-toggle">
+      <button id="theme-dark" class="secondary">Dark Nebula</button>
+      <button id="theme-bright" class="secondary">Aurora Bright</button>
+      <button id="theme-warm" class="secondary">Solar Flare</button>
+      <button id="theme-mint" class="secondary">Cyber Mint</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="panels">
+      <div class="panel">
+        <h2>Choose your orbit</h2>
+        <div class="tiers" id="tiers"></div>
+      </div>
+      <div class="panel">
+        <h2>Your studio status</h2>
+        <div class="status">
+          <div class="tile" id="tier-status">Tier: Free</div>
+          <div class="tile" id="storage-status">Storage: 32GB</div>
+          <div class="tile" id="nexbucks-status">NexBucks: 0</div>
+          <div class="tile" id="money-status">Money: $0</div>
+          <div class="tile" id="kit-status">Kits: Basic Kits only</div>
+          <div class="tile" id="video-status">Video: HD Upload/Viewing</div>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="unsubscribe" class="secondary">Unsubscribe</button>
+          <button id="reset" class="secondary">Reset Session</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-top: 18px;">
+      <div class="panel">
+        <h2>Money interface</h2>
+        <p class="features">Add or remove cash to pay for subscriptions or convert into NexBucks.</p>
+        <div class="money-grid" id="money-grid"></div>
+      </div>
+      <div class="panel">
+        <h2>NexBucks exchange</h2>
+        <p class="features">Turn money into NexBucks for tools (1$ = 10 NexBucks).</p>
+        <div class="money-grid" id="exchange-grid"></div>
+      </div>
+      <div class="panel intel">
+        <h2>Nexus Intelligence</h2>
+        <p class="features">Ask a quick prompt. This lightweight sim keeps it simple.</p>
+        <textarea id="prompt" placeholder="Generate a synthwave color palette..."></textarea>
+        <button id="ask-intel">Run Nexus Intelligence</button>
+        <div class="output" id="intel-output">Awaiting your prompt.</div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-top: 18px;">
+      <div class="panel generator">
+        <h2>Video generator</h2>
+        <p class="features">Rendering speed adapts to your tier. Costs 25 NexBucks.</p>
+        <textarea id="video-prompt" placeholder="Cinematic neon skyline..."></textarea>
+        <button id="video-generate">Generate video</button>
+        <div class="progress"><div class="progress-inner" id="video-progress"></div></div>
+        <div class="output" id="video-output">No render yet.</div>
+      </div>
+      <div class="panel generator">
+        <h2>Image generator</h2>
+        <p class="features">Image gen time adapts to your tier. Costs 15 NexBucks.</p>
+        <textarea id="image-prompt" placeholder="Cosmic watercolor portrait..."></textarea>
+        <button id="image-generate">Generate image</button>
+        <div class="progress"><div class="progress-inner" id="image-progress"></div></div>
+        <div class="output" id="image-output">No image yet.</div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-top: 18px;">
+      <div class="panel">
+        <h2>Drawing pad</h2>
+        <p class="features">Sketch ideas freely. Uses NexBucks for pro brushes (5 per clear).</p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+          <label class="features">Stroke</label>
+          <input type="color" id="draw-color" value="#7c5dff" />
+          <input type="range" id="draw-size" min="2" max="16" value="5" />
+          <button id="draw-clear" class="secondary">Clear (5 NexBucks)</button>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="draw-canvas"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Music player</h2>
+        <p class="features">Press play to vibe. Costs 2 NexBucks per play.</p>
+        <div class="money-grid" id="music-list"></div>
+        <div class="progress"><div class="progress-inner" id="music-progress"></div></div>
+        <div class="output" id="music-output">Nothing playing.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tiers = [
+      {
+        name: 'Free Tier',
+        price: 'Included',
+        cost: 0,
+        perks: [
+          '32GB Cloud Storage',
+          'HD Upload/Viewing',
+          '5,000 Songs (with ads)',
+          'Basic Kits only',
+          'Limited Access to Nexus Arcade',
+          'No Custom UI Editor',
+          'Limited Profile Customizability'
+        ],
+        kits: 'Basic Kits only',
+        storage: '32GB',
+        nexBucks: 0,
+        video: 'HD Upload/Viewing'
+      },
+      {
+        name: 'Premium',
+        price: '$4.99/mo (200GB) | $9.99/mo (500GB)',
+        cost: 4.99,
+        perks: [
+          'HD+ Quality',
+          'Nexus Intelligence (AI)',
+          'Unlimited Music',
+          'SafetyCore, Nexus Sentry',
+          'All Kits except DreamCreate',
+          'Fully Customizable Avatars',
+          'Custom UI Editor, Nexus Arcade Pass',
+          '500 NexBucks/month'
+        ],
+        kits: 'All Kits except DreamCreate',
+        storage: '200GB or 500GB',
+        nexBucks: 500,
+        video: 'HD+ Quality'
+      },
+      {
+        name: 'Premium+',
+        price: '$12.99/mo (500GB) | $16.99/mo (1TB)',
+        cost: 12.99,
+        perks: [
+          '4K 120FPS Quality',
+          'Nexus Intelligence 2.0',
+          'High-Speed Image/Video Gen',
+          'Access to ALL Kits (including DreamCreate)',
+          '1000 NexBucks/month'
+        ],
+        kits: 'All Kits including DreamCreate',
+        storage: '500GB or 1TB',
+        nexBucks: 1000,
+        video: '4K 120FPS Quality'
+      },
+      {
+        name: 'Premium Super',
+        price: '$19.99/mo (1TB) | $22.99/mo (2TB)',
+        cost: 19.99,
+        perks: [
+          '8K 240FPS Upscaling (Real Time)',
+          'Nexus Intelligence 3.0 Turbo',
+          'Developer Tools, Supersonic Gen',
+          'Studio Kits (Video, Audio, Art, Image Studios)',
+          '2000 NexBucks/month'
+        ],
+        kits: 'Studio Kits + all others',
+        storage: '1TB or 2TB',
+        nexBucks: 2000,
+        video: '8K 240FPS Upscaling (Real Time)'
+      }
+    ];
+
+    const moneyOptions = [10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 500, 1000];
+    const exchangeOptions = [5, 10, 20, 50, 100, 150];
+
+    const tierContainer = document.getElementById('tiers');
+    const moneyGrid = document.getElementById('money-grid');
+    const exchangeGrid = document.getElementById('exchange-grid');
+    const tierStatus = document.getElementById('tier-status');
+    const storageStatus = document.getElementById('storage-status');
+    const nexbucksStatus = document.getElementById('nexbucks-status');
+    const moneyStatus = document.getElementById('money-status');
+    const kitStatus = document.getElementById('kit-status');
+    const videoStatus = document.getElementById('video-status');
+    const unsubscribeBtn = document.getElementById('unsubscribe');
+    const resetBtn = document.getElementById('reset');
+    const intelOutput = document.getElementById('intel-output');
+    const promptBox = document.getElementById('prompt');
+
+    const checkoutOverlay = document.getElementById('checkout');
+    const checkoutPrice = document.getElementById('checkout-price');
+    const checkoutError = document.getElementById('checkout-error');
+    const checkoutConfirm = document.getElementById('checkout-confirm');
+    const checkoutCancel = document.getElementById('checkout-cancel');
+
+    const videoPrompt = document.getElementById('video-prompt');
+    const videoProgress = document.getElementById('video-progress');
+    const videoOutput = document.getElementById('video-output');
+    const imagePrompt = document.getElementById('image-prompt');
+    const imageProgress = document.getElementById('image-progress');
+    const imageOutput = document.getElementById('image-output');
+
+    const drawCanvas = document.getElementById('draw-canvas');
+    const drawColor = document.getElementById('draw-color');
+    const drawSize = document.getElementById('draw-size');
+    const drawClear = document.getElementById('draw-clear');
+
+    const musicList = document.getElementById('music-list');
+    const musicProgress = document.getElementById('music-progress');
+    const musicOutput = document.getElementById('music-output');
+
+    let currentTier = tiers[0];
+    let moneyBalance = 0;
+    let nexbucksBalance = 0;
+    let pendingTier = null;
+
+    let videoTimer = null;
+    let imageTimer = null;
+    let musicTimer = null;
+
+    const musicTracks = [
+      { title: 'Hyperdrive Horizon', duration: 12 },
+      { title: 'Nocturne Neon', duration: 10 },
+      { title: 'Solar Echoes', duration: 14 }
+    ];
+
+    function renderTiers() {
+      tierContainer.innerHTML = '';
+      tiers.forEach((tier) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="badge">${tier.price}</div>
+          <h3>${tier.name}</h3>
+          <div class="features">${tier.perks.join('<br>')}</div>
+          <button data-tier="${tier.name}">Subscribe</button>
+        `;
+        card.querySelector('button').addEventListener('click', () => openCheckout(tier));
+        tierContainer.appendChild(card);
+      });
+    }
+
+    function renderMoney() {
+      moneyGrid.innerHTML = '';
+      moneyOptions.forEach((amount) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = `Add $${amount}`;
+        chip.addEventListener('click', () => updateMoney(amount));
+        moneyGrid.appendChild(chip);
+
+        const chipRemove = document.createElement('div');
+        chipRemove.className = 'chip';
+        chipRemove.textContent = `Remove $${amount}`;
+        chipRemove.addEventListener('click', () => updateMoney(-amount));
+        moneyGrid.appendChild(chipRemove);
+      });
+    }
+
+    function renderExchange() {
+      exchangeGrid.innerHTML = '';
+      exchangeOptions.forEach((amount) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = `Convert $${amount} → ${amount * 10} NexBucks`;
+        chip.addEventListener('click', () => convertToNexBucks(amount));
+        exchangeGrid.appendChild(chip);
+      });
+    }
+
+    function openCheckout(tier) {
+      pendingTier = tier;
+      checkoutOverlay.classList.remove('hidden');
+      checkoutPrice.value = `${tier.name} • $${tier.cost.toFixed(2)} (fake charge)`;
+      checkoutError.classList.add('hidden');
+    }
+
+    function closeCheckout() {
+      checkoutOverlay.classList.add('hidden');
+      pendingTier = null;
+    }
+
+    function setTier(tier) {
+      currentTier = tier;
+      nexbucksBalance += tier.nexBucks;
+      updateStatus();
+      intelOutput.textContent = `${tier.name} unlocked. Enjoy ${tier.video} and ${tier.kits}.`;
+    }
+
+    function updateStatus() {
+      tierStatus.textContent = `Tier: ${currentTier.name}`;
+      storageStatus.textContent = `Storage: ${currentTier.storage}`;
+      nexbucksStatus.textContent = `NexBucks: ${nexbucksBalance}`;
+      moneyStatus.textContent = `Money: $${moneyBalance.toFixed(2)}`;
+      kitStatus.textContent = `Kits: ${currentTier.kits}`;
+      videoStatus.textContent = `Video: ${currentTier.video}`;
+    }
+
+    function updateMoney(delta) {
+      moneyBalance = Math.max(0, moneyBalance + delta);
+      updateStatus();
+    }
+
+    function convertToNexBucks(amount) {
+      if (moneyBalance < amount) {
+        intelOutput.textContent = 'Not enough money to convert. Add more funds first.';
+        return;
+      }
+      moneyBalance -= amount;
+      nexbucksBalance += amount * 10;
+      intelOutput.textContent = `Converted $${amount} to ${amount * 10} NexBucks.`;
+      updateStatus();
+    }
+
+    function resetSession() {
+      currentTier = tiers[0];
+      moneyBalance = 0;
+      nexbucksBalance = 0;
+      pendingTier = null;
+      promptBox.value = '';
+      intelOutput.textContent = 'Awaiting your prompt.';
+      videoOutput.textContent = 'No render yet.';
+      imageOutput.textContent = 'No image yet.';
+      videoProgress.style.width = '0%';
+      imageProgress.style.width = '0%';
+      musicOutput.textContent = 'Nothing playing.';
+      musicProgress.style.width = '0%';
+      updateStatus();
+    }
+
+    unsubscribeBtn.addEventListener('click', () => {
+      resetSession();
+      intelOutput.textContent = 'You have unsubscribed. Free Tier active.';
+    });
+
+    resetBtn.addEventListener('click', resetSession);
+
+    document.getElementById('ask-intel').addEventListener('click', () => {
+      const prompt = promptBox.value.trim();
+      if (!prompt) {
+        intelOutput.textContent = 'Give Nexus Intelligence something to remix!';
+        return;
+      }
+      const suffix = ['with neon gradients', 'with crisp gridlines', 'with quantum flair'][
+        Math.floor(Math.random() * 3)
+      ];
+      intelOutput.textContent = `Nexus Intelligence suggests: ${prompt} → Try it ${suffix} and a synthwave soundtrack.`;
+    });
+
+    checkoutConfirm.addEventListener('click', () => {
+      if (!pendingTier) return;
+      checkoutError.classList.add('hidden');
+      if (moneyBalance < pendingTier.cost) {
+        checkoutError.textContent = 'Not enough money for this tier. Add more funds first (still a fake charge).';
+        checkoutError.classList.remove('hidden');
+        return;
+      }
+      moneyBalance -= pendingTier.cost;
+      setTier(pendingTier);
+      closeCheckout();
+    });
+
+    checkoutCancel.addEventListener('click', closeCheckout);
+
+    document.getElementById('video-generate').addEventListener('click', () => {
+      if (!spendNexBucks(25)) return;
+      const prompt = videoPrompt.value.trim() || 'Untitled vision';
+      startProgress('video');
+      videoOutput.textContent = `Rendering video for: ${prompt}`;
+    });
+
+    document.getElementById('image-generate').addEventListener('click', () => {
+      if (!spendNexBucks(15)) return;
+      const prompt = imagePrompt.value.trim() || 'Untitled concept';
+      startProgress('image');
+      imageOutput.textContent = `Generating image for: ${prompt}`;
+    });
+
+    drawClear.addEventListener('click', () => {
+      if (!spendNexBucks(5)) return;
+      const ctx = drawCanvas.getContext('2d');
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      intelOutput.textContent = 'Canvas cleared with premium brushes.';
+    });
+
+    function spendNexBucks(cost) {
+      if (nexbucksBalance < cost) {
+        intelOutput.textContent = `Need ${cost} NexBucks. Convert money in the exchange first.`;
+        return false;
+      }
+      nexbucksBalance -= cost;
+      updateStatus();
+      return true;
+    }
+
+    function startProgress(type) {
+      const map = {
+        'Free Tier': 12,
+        'Premium': 9,
+        'Premium+': 6,
+        'Premium Super': 4
+      };
+      const total = map[currentTier.name] || 10;
+      let elapsed = 0;
+      const target = type === 'video' ? videoProgress : imageProgress;
+      const output = type === 'video' ? videoOutput : imageOutput;
+      const timerRef = type === 'video' ? 'videoTimer' : 'imageTimer';
+
+      if (type === 'video' && videoTimer) clearInterval(videoTimer);
+      if (type === 'image' && imageTimer) clearInterval(imageTimer);
+
+      target.style.width = '0%';
+      const interval = setInterval(() => {
+        elapsed += 0.2;
+        const percent = Math.min(100, (elapsed / total) * 100);
+        target.style.width = `${percent}%`;
+        if (percent >= 100) {
+          clearInterval(interval);
+          if (type === 'video') {
+            videoTimer = null;
+            output.innerHTML = buildShapes('video');
+          } else {
+            imageTimer = null;
+            output.innerHTML = buildShapes('image');
+          }
+        }
+      }, 200);
+
+      if (type === 'video') videoTimer = interval; else imageTimer = interval;
+    }
+
+    function buildShapes(kind) {
+      const colors = ['#7c5dff', '#1dd0ff', '#5cf2c7', '#ff9bf2', '#ffc857'];
+      let html = '<div class="generated-visuals">';
+      for (let i = 0; i < 8; i++) {
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        html += `<div class="shape" style="background:${color}1a; border-color:${color}66; color:${color};">${kind}</div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function renderMusic() {
+      musicList.innerHTML = '';
+      musicTracks.forEach((track) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = `Play ${track.title}`;
+        chip.addEventListener('click', () => playTrack(track));
+        musicList.appendChild(chip);
+      });
+    }
+
+    function playTrack(track) {
+      if (!spendNexBucks(2)) return;
+      if (musicTimer) clearInterval(musicTimer);
+      musicProgress.style.width = '0%';
+      musicOutput.textContent = `Playing ${track.title} (simulated)`;
+      let elapsed = 0;
+      musicTimer = setInterval(() => {
+        elapsed += 1;
+        const percent = Math.min(100, (elapsed / track.duration) * 100);
+        musicProgress.style.width = `${percent}%`;
+        if (percent >= 100) {
+          clearInterval(musicTimer);
+          musicTimer = null;
+          musicOutput.textContent = `${track.title} finished.`;
+        }
+      }, 500);
+    }
+
+    // Drawing setup
+    function setupDrawing() {
+      const ctx = drawCanvas.getContext('2d');
+      const rect = () => drawCanvas.getBoundingClientRect();
+      let drawing = false;
+
+      function resizeCanvas() {
+        const { width } = rect();
+        drawCanvas.width = width;
+        drawCanvas.height = 280;
+      }
+
+      function start(e) {
+        drawing = true;
+        draw(e);
+      }
+
+      function end() { drawing = false; ctx.beginPath(); }
+
+      function draw(e) {
+        if (!drawing) return;
+        const { left, top } = rect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - top;
+        ctx.lineWidth = drawSize.value;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = drawColor.value;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      drawCanvas.addEventListener('mousedown', start);
+      drawCanvas.addEventListener('touchstart', start);
+      drawCanvas.addEventListener('mousemove', draw);
+      drawCanvas.addEventListener('touchmove', draw);
+      drawCanvas.addEventListener('mouseup', end);
+      drawCanvas.addEventListener('mouseleave', end);
+      drawCanvas.addEventListener('touchend', end);
+      resizeCanvas();
+    }
+
+    // Starfield animation
+    const canvas = document.getElementById('starfield');
+    const ctxStar = canvas.getContext('2d');
+    let stars = [];
+
+    function resizeStarfield() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = Array.from({ length: 140 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        z: Math.random() * 2 + 0.5,
+        r: Math.random() * 1.5 + 0.3
+      }));
+    }
+
+    function animateStarfield() {
+      ctxStar.clearRect(0, 0, canvas.width, canvas.height);
+      ctxStar.fillStyle = '#ffffff';
+      stars.forEach((s) => {
+        ctxStar.globalAlpha = 0.35 + Math.random() * 0.65;
+        ctxStar.beginPath();
+        ctxStar.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctxStar.fill();
+        s.y += s.z;
+        if (s.y > canvas.height) s.y = 0;
+      });
+      requestAnimationFrame(animateStarfield);
+    }
+
+    window.addEventListener('resize', () => {
+      resizeStarfield();
+      const rect = drawCanvas.getBoundingClientRect();
+      drawCanvas.width = rect.width;
+    });
+
+    // Sign-in logic
+    const signin = document.getElementById('signin');
+    const signinBtn = document.getElementById('signin-btn');
+    const passwordInput = document.getElementById('password');
+    const errorBox = document.getElementById('signin-error');
+
+    function attemptSignin() {
+      if (passwordInput.value === 'test') {
+        signin.classList.add('hidden');
+      } else {
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    signinBtn.addEventListener('click', attemptSignin);
+    passwordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') attemptSignin();
+    });
+
+    // Theme switching
+    document.getElementById('theme-dark').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#03060f');
+      document.documentElement.style.setProperty('--panel', 'rgba(16,18,30,0.86)');
+      document.documentElement.style.setProperty('--accent', '#7c5dff');
+      document.documentElement.style.setProperty('--accent-2', '#1dd0ff');
+    });
+
+    document.getElementById('theme-bright').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#0c1223');
+      document.documentElement.style.setProperty('--panel', 'rgba(255,255,255,0.14)');
+      document.documentElement.style.setProperty('--accent', '#5cf2c7');
+      document.documentElement.style.setProperty('--accent-2', '#ff9bf2');
+    });
+
+    document.getElementById('theme-warm').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#140a07');
+      document.documentElement.style.setProperty('--panel', 'rgba(48,22,12,0.82)');
+      document.documentElement.style.setProperty('--accent', '#ff8a4c');
+      document.documentElement.style.setProperty('--accent-2', '#ffc857');
+    });
+
+    document.getElementById('theme-mint').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#041310');
+      document.documentElement.style.setProperty('--panel', 'rgba(11,40,33,0.85)');
+      document.documentElement.style.setProperty('--accent', '#2df5c0');
+      document.documentElement.style.setProperty('--accent-2', '#8cf7ff');
+    });
+
+    function init() {
+      renderTiers();
+      renderMoney();
+      renderExchange();
+      renderMusic();
+      setupDrawing();
+      resizeStarfield();
+      animateStarfield();
+      updateStatus();
+    }
+
+    init();
+  </script>
+</body>
+</html>
