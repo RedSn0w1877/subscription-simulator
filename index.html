@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus Studio System Simulator</title>
+  <style>
+    :root {
+      --bg: #05060a;
+      --panel: rgba(17, 22, 34, 0.8);
+      --accent: #7c5dff;
+      --accent-2: #1dd0ff;
+      --text: #e9f1ff;
+      --muted: #9db0d1;
+      --success: #5cf2c7;
+      --danger: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 20% 20%, rgba(124, 93, 255, 0.1), transparent 25%),
+        radial-gradient(circle at 80% 30%, rgba(29, 208, 255, 0.15), transparent 30%),
+        radial-gradient(circle at 50% 80%, rgba(92, 242, 199, 0.08), transparent 25%),
+        var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    canvas#starfield {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    .grid {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+      background-size: 80px 80px;
+      transform: perspective(700px) rotateX(70deg);
+      transform-origin: top;
+      filter: blur(0.6px);
+      opacity: 0.5;
+      z-index: 1;
+    }
+
+    header {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo span {
+      background: linear-gradient(120deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .theme-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    button, .chip {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: linear-gradient(120deg, rgba(124, 93, 255, 0.18), rgba(29, 208, 255, 0.18));
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    }
+
+    button:hover, .chip:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 8px 30px rgba(124, 93, 255, 0.2), 0 8px 30px rgba(29, 208, 255, 0.2);
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .content {
+      position: relative;
+      z-index: 2;
+      padding: 16px 32px 120px;
+      overflow-y: auto;
+      height: calc(100vh - 70px);
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(10px);
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .tiers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(124, 93, 255, 0.12), rgba(29, 208, 255, 0.12));
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+
+    .card:hover:before { opacity: 1; }
+    .card * { position: relative; }
+
+    .badge { font-size: 0.8rem; color: var(--muted); }
+    .features { color: var(--muted); font-size: 0.95rem; line-height: 1.4; }
+
+    .status {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .tile {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 0.95rem;
+    }
+
+    .intel textarea {
+      width: 100%;
+      min-height: 90px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--text);
+      padding: 12px;
+      resize: vertical;
+    }
+
+    .intel .output {
+      margin-top: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      min-height: 60px;
+    }
+
+    .money-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .signin-overlay {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 30% 30%, rgba(124, 93, 255, 0.15), transparent 40%),
+        radial-gradient(circle at 70% 50%, rgba(29, 208, 255, 0.18), transparent 40%),
+        rgba(5, 6, 10, 0.94);
+      backdrop-filter: blur(16px);
+      z-index: 10;
+      animation: fadeIn 500ms ease;
+    }
+
+    .signin-box {
+      width: min(460px, 90vw);
+      padding: 24px;
+      background: rgba(17, 22, 34, 0.85);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    .signin-box h1 { margin: 0 0 6px; }
+    .signin-box p { color: var(--muted); margin-top: 0; }
+
+    .input {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .input input {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--text);
+    }
+
+    .error { color: var(--danger); font-size: 0.9rem; }
+    .hidden { display: none; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 1000px) {
+      .panels { grid-template-columns: 1fr; height: auto; }
+      body { overflow: auto; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+  <div class="grid"></div>
+  <div id="signin" class="signin-overlay">
+    <div class="signin-box">
+      <h1>Welcome to Nexus Studio</h1>
+      <p>Sign in to start creating across code, art, music, and games.</p>
+      <div class="input">
+        <label>Creator Handle</label>
+        <input id="username" placeholder="e.g., NovaMaker" />
+      </div>
+      <div class="input">
+        <label>Password (hint: test)</label>
+        <input id="password" type="password" placeholder="Password" />
+      </div>
+      <div id="signin-error" class="error hidden">Incorrect password. Use "test" to explore.</div>
+      <button id="signin-btn">Enter Studio</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="logo">☄️ <span>Nexus Studio</span> System Simulator</div>
+    <div class="theme-toggle">
+      <button id="theme-dark" class="secondary">Dark Nebula</button>
+      <button id="theme-bright" class="secondary">Aurora Bright</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="panels">
+      <div class="panel">
+        <h2>Choose your orbit</h2>
+        <div class="tiers" id="tiers"></div>
+      </div>
+      <div class="panel">
+        <h2>Your studio status</h2>
+        <div class="status">
+          <div class="tile" id="tier-status">Tier: Free</div>
+          <div class="tile" id="storage-status">Storage: 32GB</div>
+          <div class="tile" id="nexbucks-status">NexBucks: 0</div>
+          <div class="tile" id="kit-status">Kits: Basic Kits only</div>
+        </div>
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="unsubscribe" class="secondary">Unsubscribe</button>
+          <button id="reset" class="secondary">Reset Session</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panels" style="margin-top: 18px;">
+      <div class="panel">
+        <h2>Money interface</h2>
+        <p class="features">Add or remove studio funds instantly.</p>
+        <div class="money-grid" id="money-grid"></div>
+      </div>
+      <div class="panel intel">
+        <h2>Nexus Intelligence</h2>
+        <p class="features">Ask a quick prompt. This lightweight sim keeps it simple.</p>
+        <textarea id="prompt" placeholder="Generate a synthwave color palette..."></textarea>
+        <button id="ask-intel">Run Nexus Intelligence</button>
+        <div class="output" id="intel-output">Awaiting your prompt.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tiers = [
+      {
+        name: 'Free Tier',
+        price: 'Included',
+        perks: [
+          '32GB Cloud Storage',
+          'HD Upload/Viewing',
+          '5,000 Songs (with ads)',
+          'Basic Kits only',
+          'Limited Access to Nexus Arcade',
+          'No Custom UI Editor',
+          'Limited Profile Customizability'
+        ],
+        kits: 'Basic Kits only',
+        storage: '32GB',
+        nexBucks: 0,
+        video: 'HD Upload/Viewing'
+      },
+      {
+        name: 'Premium',
+        price: '$4.99/mo (200GB) | $9.99/mo (500GB)',
+        perks: [
+          'HD+ Quality',
+          'Nexus Intelligence (AI)',
+          'Unlimited Music',
+          'SafetyCore, Nexus Sentry',
+          'All Kits except DreamCreate',
+          'Fully Customizable Avatars',
+          'Custom UI Editor, Nexus Arcade Pass',
+          '500 NexBucks/month'
+        ],
+        kits: 'All Kits except DreamCreate',
+        storage: '200GB or 500GB',
+        nexBucks: 500,
+        video: 'HD+ Quality'
+      },
+      {
+        name: 'Premium+',
+        price: '$12.99/mo (500GB) | $16.99/mo (1TB)',
+        perks: [
+          '4K 120FPS Quality',
+          'Nexus Intelligence 2.0',
+          'High-Speed Image/Video Gen',
+          'Access to ALL Kits (including DreamCreate)',
+          '1000 NexBucks/month'
+        ],
+        kits: 'All Kits including DreamCreate',
+        storage: '500GB or 1TB',
+        nexBucks: 1000,
+        video: '4K 120FPS Quality'
+      },
+      {
+        name: 'Premium Super',
+        price: '$19.99/mo (1TB) | $22.99/mo (2TB)',
+        perks: [
+          '8K 240FPS Upscaling (Real Time)',
+          'Nexus Intelligence 3.0 Turbo',
+          'Developer Tools, Supersonic Gen',
+          'Studio Kits (Video, Audio, Art, Image Studios)',
+          '2000 NexBucks/month'
+        ],
+        kits: 'Studio Kits + all others',
+        storage: '1TB or 2TB',
+        nexBucks: 2000,
+        video: '8K 240FPS Upscaling (Real Time)'
+      }
+    ];
+
+    const moneyOptions = [10, 20, 30, 40, 50, 100, 150, 200, 250, 300, 500, 1000];
+
+    const tierContainer = document.getElementById('tiers');
+    const moneyGrid = document.getElementById('money-grid');
+    const tierStatus = document.getElementById('tier-status');
+    const storageStatus = document.getElementById('storage-status');
+    const nexbucksStatus = document.getElementById('nexbucks-status');
+    const kitStatus = document.getElementById('kit-status');
+    const unsubscribeBtn = document.getElementById('unsubscribe');
+    const resetBtn = document.getElementById('reset');
+    const intelOutput = document.getElementById('intel-output');
+    const promptBox = document.getElementById('prompt');
+
+    let currentTier = tiers[0];
+    let balance = 0;
+
+    function renderTiers() {
+      tierContainer.innerHTML = '';
+      tiers.forEach((tier) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="badge">${tier.price}</div>
+          <h3>${tier.name}</h3>
+          <div class="features">${tier.perks.join('<br>')}</div>
+          <button data-tier="${tier.name}">Subscribe</button>
+        `;
+        card.querySelector('button').addEventListener('click', () => setTier(tier));
+        tierContainer.appendChild(card);
+      });
+    }
+
+    function renderMoney() {
+      moneyGrid.innerHTML = '';
+      moneyOptions.forEach((amount) => {
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.textContent = `Add $${amount}`;
+        chip.addEventListener('click', () => updateMoney(amount));
+        moneyGrid.appendChild(chip);
+
+        const chipRemove = document.createElement('div');
+        chipRemove.className = 'chip';
+        chipRemove.textContent = `Remove $${amount}`;
+        chipRemove.addEventListener('click', () => updateMoney(-amount));
+        moneyGrid.appendChild(chipRemove);
+      });
+    }
+
+    function setTier(tier) {
+      currentTier = tier;
+      balance = tier.nexBucks;
+      updateStatus();
+      intelOutput.textContent = `${tier.name} unlocked. Enjoy ${tier.video} and ${tier.kits}.`;
+    }
+
+    function updateStatus() {
+      tierStatus.textContent = `Tier: ${currentTier.name}`;
+      storageStatus.textContent = `Storage: ${currentTier.storage}`;
+      nexbucksStatus.textContent = `NexBucks: ${balance}`;
+      kitStatus.textContent = `Kits: ${currentTier.kits}`;
+    }
+
+    function updateMoney(delta) {
+      balance = Math.max(0, balance + delta);
+      nexbucksStatus.textContent = `NexBucks: ${balance}`;
+    }
+
+    function resetSession() {
+      currentTier = tiers[0];
+      balance = 0;
+      updateStatus();
+      promptBox.value = '';
+      intelOutput.textContent = 'Awaiting your prompt.';
+    }
+
+    unsubscribeBtn.addEventListener('click', () => {
+      resetSession();
+      intelOutput.textContent = 'You have unsubscribed. Free Tier active.';
+    });
+
+    resetBtn.addEventListener('click', resetSession);
+
+    document.getElementById('ask-intel').addEventListener('click', () => {
+      const prompt = promptBox.value.trim();
+      if (!prompt) {
+        intelOutput.textContent = 'Give Nexus Intelligence something to remix!';
+        return;
+      }
+      intelOutput.textContent = `Nexus Intelligence suggests: ${prompt} → Try it with neon gradients, crisp gridlines, and a synthwave soundtrack.`;
+    });
+
+    // Starfield animation
+    const canvas = document.getElementById('starfield');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      stars = Array.from({ length: 140 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        z: Math.random() * 2 + 0.5,
+        r: Math.random() * 1.5 + 0.3
+      }));
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      stars.forEach((s) => {
+        ctx.globalAlpha = 0.35 + Math.random() * 0.65;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        s.y += s.z;
+        if (s.y > canvas.height) s.y = 0;
+      });
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', resize);
+
+    // Sign-in logic
+    const signin = document.getElementById('signin');
+    const signinBtn = document.getElementById('signin-btn');
+    const passwordInput = document.getElementById('password');
+    const errorBox = document.getElementById('signin-error');
+
+    function attemptSignin() {
+      if (passwordInput.value === 'test') {
+        signin.classList.add('hidden');
+      } else {
+        errorBox.classList.remove('hidden');
+      }
+    }
+
+    signinBtn.addEventListener('click', attemptSignin);
+    passwordInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') attemptSignin();
+    });
+
+    // Theme switching
+    document.getElementById('theme-dark').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#05060a');
+      document.documentElement.style.setProperty('--panel', 'rgba(17,22,34,0.8)');
+      document.documentElement.style.setProperty('--accent', '#7c5dff');
+      document.documentElement.style.setProperty('--accent-2', '#1dd0ff');
+    });
+
+    document.getElementById('theme-bright').addEventListener('click', () => {
+      document.documentElement.style.setProperty('--bg', '#0c1223');
+      document.documentElement.style.setProperty('--panel', 'rgba(255,255,255,0.14)');
+      document.documentElement.style.setProperty('--accent', '#5cf2c7');
+      document.documentElement.style.setProperty('--accent-2', '#ff9bf2');
+    });
+
+    // Initialize
+    renderTiers();
+    renderMoney();
+    resize();
+    animate();
+    updateStatus();
+  </script>
+</body>
+</html>
